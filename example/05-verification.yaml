@@ -1,0 +1,46 @@
+meta:
+  doc_id: verify-2026-06-16-news-retention
+  stage: verification
+  schema_version: 1
+  author: worker:workload-recon    # independent of the executor — no player-referee
+  created_at: 2026-06-16T14:15:00Z
+  updated_at: 2026-06-16T14:20:00Z
+
+status: approved
+upstream_ref:
+  - req-2026-06-16-news-retention   # for the acceptance criteria
+  - exec-2026-06-16-news-retention  # for the actual results
+frozen_at: 2026-06-16T14:20:00Z
+
+summary: >
+  Compared ac1–ac3 item by item; all pass. CronJob deployed correctly and ran
+  without errors, no rows older than 30 days remain after the run, and the
+  dry-run-first flow was followed.
+
+content:
+  checks:
+    - criterion_id: ac1
+      expected: "CronJob runs daily and succeeds with no error logs"
+      actual: "First real job Completed, exit 0, no errors; schedule 0 20 * * * UTC correct"
+      pass: true
+    - criterion_id: ac2
+      expected: "No rows with published_at older than 30 days after the run"
+      actual: "SELECT count(*) WHERE published_at < now()-interval '30 days' = 0"
+      pass: true
+    - criterion_id: ac3
+      expected: "First run dry-run; real deletion only after user confirmation"
+      actual: "t4 dry-run reported 41,237 rows; user approved at 13:55; t5 landed the restore point before t6 set DRY_RUN=false"
+      pass: true
+
+assumptions: []
+
+open_questions: []
+
+decisions:
+  - at: 2026-06-16T14:20:00Z
+    by: worker:workload-recon
+    decision: "ac1–ac3 all pass; the BATCH adjustment did not affect acceptance; released to retrospective (via observation)"
+
+acceptance:
+  - { item: "every criterion has expected/actual/pass", done: true }
+  - { item: "no unresolved failures", done: true }

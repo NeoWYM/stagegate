@@ -1,0 +1,74 @@
+meta:
+  doc_id: req-2026-06-16-news-retention
+  stage: requirements
+  schema_version: 1
+  author: orchestrator
+  created_at: 2026-06-16T13:00:00Z
+  updated_at: 2026-06-16T13:08:00Z
+
+# Loop trace:
+#   13:00 draft produced; q1/q2 blocking and unanswered → status: needs_input
+#   13:05 orchestrator puts the questions to the user
+#   13:08 answers merged, blocking cleared + sign-off → status: approved
+status: approved
+
+upstream_ref: []
+frozen_at: 2026-06-16T13:08:00Z
+
+summary: >
+  Add a daily cleanup CronJob for the news article data: delete articles past
+  the retention period (30 days), main article table only, validated by a
+  dry-run of the deletion volume before the real deletion is enabled.
+
+content:
+  goal: "Bound the long-term growth of the news article table by automatically cleaning up old data"
+  scope:
+    - "Add a daily cleanup CronJob (news namespace)"
+    - "Delete articles older than the retention period by published_at"
+    - "First run as dry-run (count only) to validate the deletion volume"
+  non_goals:
+    - "No changes to the collector's ingestion logic"
+    - "No archiving / cold storage — expired means deleted"
+    - "No DB capacity or volume adjustments"
+  constraints:
+    - "Deletion is destructive: the real deletion volume must be human-confirmed before cutover"
+    - "Cleanup window must avoid the collector's write peak"
+  acceptance_criteria:
+    - id: ac1
+      text: "CronJob runs daily and succeeds with no error logs"
+    - id: ac2
+      text: "After a run, no rows remain with published_at older than the retention period"
+    - id: ac3
+      text: "First run is a dry-run; real deletion only after the user confirms the volume"
+
+assumptions:
+  - id: a1
+    text: "Target is the main article table; related tables (if any) are handled by FK cascade or need no handling"
+    confidence: medium
+    source: "inferred — schema to be confirmed at the environment stage"
+
+open_questions:
+  - id: q1
+    question: "How long should old news be retained?"
+    options: ["7 days", "30 days", "90 days", "tiered by category"]
+    blocking: true
+    answer: "30 days"
+    answered_by: human
+    answered_at: 2026-06-16T13:08:00Z
+  - id: q2
+    question: "Delete expired data outright, or archive first?"
+    options: ["delete outright", "archive to cold storage, then delete"]
+    blocking: true
+    answer: "delete outright"
+    answered_by: human
+    answered_at: 2026-06-16T13:08:00Z
+
+decisions:
+  - at: 2026-06-16T13:08:00Z
+    by: human
+    decision: "30-day retention, delete outright, dry-run first; requirements signed off, frozen, entering environment stage"
+
+acceptance:
+  - { item: "scope and non_goals explicit", done: true }
+  - { item: "no blocking open_questions", done: true }
+  - { item: "acceptance criteria measurable", done: true }

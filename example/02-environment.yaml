@@ -1,0 +1,58 @@
+meta:
+  doc_id: env-2026-06-16-news-retention
+  stage: environment
+  schema_version: 1
+  author: worker:db-recon          # read-only recon: DB schema inspection + workload conventions
+  created_at: 2026-06-16T13:12:00Z
+  updated_at: 2026-06-16T13:18:00Z
+
+status: approved                   # no blocking conflicts; gap survey complete
+upstream_ref:
+  - req-2026-06-16-news-retention
+frozen_at: 2026-06-16T13:18:00Z
+
+summary: >
+  Main article table is news.articles with time column published_at (timestamptz).
+  No cleanup mechanism exists today. published_at is unindexed; at 30-day retention
+  the one-off deletion volume is manageable, but batched deletion is recommended to
+  avoid long locks. The news namespace already has a collector CronJob whose
+  conventions can be followed.
+
+content:
+  current_state:
+    table: "news.articles"
+    time_column: "published_at (timestamptz, NOT NULL)"
+    row_count_estimate: 480000
+    rows_older_than_30d_estimate: 41000
+    existing_cleanup: "none"
+    related_tables: "news.article_sources (FK article_id, ON DELETE CASCADE)"
+    namespace_convention: "news namespace already runs cronjob news-collector; images built via CI"
+    db_access: "psql via the cluster's database pod; write role news_rw"
+  gaps:
+    - id: g1
+      text: "No cleanup CronJob or corresponding image/manifest exists"
+    - id: g2
+      text: "published_at unindexed; WHERE scan for bulk deletes is slow-ish but acceptable"
+  blockers: []                     # nothing blocking; no needs_input required
+
+assumptions:
+  - id: a1
+    text: "article_sources rows are removed via FK CASCADE with the main table; no separate handling needed"
+    confidence: high
+    source: "schema inspection confirmed ON DELETE CASCADE"
+  - id: a2
+    text: "No new index for this task (independent optimization, out of scope); mitigate with batched deletion instead"
+    confidence: medium
+    source: "inferred: adding an index is a schema change deserving its own lap; batching avoids the issue for now"
+
+open_questions: []
+
+decisions:
+  - at: 2026-06-16T13:18:00Z
+    by: worker:db-recon
+    decision: "Environment clear; recommend batched deletion (5k per batch) to avoid long locks — carried into planning"
+
+acceptance:
+  - { item: "current_state survey complete", done: true }
+  - { item: "gaps listed", done: true }
+  - { item: "no unresolved requirement/environment conflicts", done: true }

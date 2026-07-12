@@ -1,0 +1,98 @@
+meta:
+  doc_id: plan-2026-06-16-news-retention
+  stage: planning
+  schema_version: 1
+  author: worker:Plan
+  created_at: 2026-06-16T13:22:00Z
+  updated_at: 2026-06-16T13:29:00Z   # frozen only after user sign-off (13:28)
+
+status: approved
+upstream_ref:
+  - intake-2026-06-16-news-retention # consumes signals.reversibility=low
+  - req-2026-06-16-news-retention
+  - env-2026-06-16-news-retention
+frozen_at: 2026-06-16T13:29:00Z      # ≥ sign-off time, and before execution created_at (13:30)
+
+summary: >
+  Six tasks: write the cleanup script (batched deletes) → build the image via CI →
+  deploy the CronJob → dry-run to measure the deletion volume (human_gate, user
+  confirms) → checkpoint before deletion (dump as restore point) → cut over to real
+  deletion. Because 00 judged reversibility=low, a rollback_plan is produced and the
+  destructive cutover depends_on the checkpoint. The whole plan is signed off by the
+  user (conditional human gate), not just confirmed task-by-task later.
+
+content:
+  tasks:
+    - id: t1
+      desc: "Write cleanup script: DELETE FROM news.articles WHERE published_at < now()-30d, batches of 5000 in a LIMIT loop"
+      depends_on: []
+      owner: worker:execution
+      est: "30m"
+      human_gate: false
+      acceptance: "Script supports a DRY_RUN environment variable (SELECT count only, no deletion)"
+    - id: t2
+      desc: "Package as an image; commit & push so CI builds it (no local docker build)"
+      depends_on: [t1]
+      owner: worker:execution
+      est: "20m"
+      human_gate: false
+      acceptance: "CI pipeline green; image tag produced"
+    - id: t3
+      desc: "Deploy CronJob (news namespace, daily at 04:00 local — off the collector's peak), default DRY_RUN=true"
+      depends_on: [t2]
+      owner: worker:execution
+      est: "15m"
+      human_gate: false
+      acceptance: "kubectl get cronjob shows correct schedule, suspend=false"
+    - id: t4
+      desc: "Manually trigger one dry-run job, obtain the projected deletion count, report to the user for confirmation"
+      depends_on: [t3]
+      owner: orchestrator
+      est: "10m"
+      human_gate: true            # ← the human confirmation point before the destructive cutover
+      acceptance: "User has seen the dry-run deletion volume and approved the cutover"
+    - id: t5
+      desc: "Checkpoint (restore point): before deletion, dump the news.articles rows matching published_at<30d PLUS the related news.article_sources rows (CASCADE child table must be included) to backup object storage"
+      depends_on: [t4]
+      owner: worker:execution
+      est: "15m"
+      human_gate: false
+      acceptance: "Dump landed; row count matches the dry-run figure (41,237); **restorability verified (e.g. pg_restore --list)** — existing ≠ restorable; restore point path written into restore_point_ref"
+    - id: t6
+      desc: "After confirmation, set DRY_RUN=false — real daily deletion enabled"
+      depends_on: [t5]            # ← destructive cutover depends_on the checkpoint; blocked until the restore point lands
+      owner: worker:execution
+      est: "10m"
+      human_gate: false
+      acceptance: "CronJob env DRY_RUN=false; next scheduled run actually deletes"
+
+  # destructive + low reversibility (00.signals.reversibility=low) → content must include rollback_plan
+  rollback_plan:
+    trigger: "verification ac2 fails, or during observation a mistaken deletion / business need for old articles surfaces"
+    method: "Restore news.articles and news.article_sources from the t5 dump (CASCADE child table restored together, avoiding orphans/missing rows)"
+    restore_point: "t5's pre-delete dump (articles + article_sources), in backup object storage"
+    rpo: "the moment before deletion — dump and DELETE share the same published_at<30d boundary; zero data loss"
+    owner: "orchestrator (DB restore is destructive; executed manually via the DB channel, not decided by a worker)"
+
+assumptions:
+  - id: a1
+    text: "04:00 local is the collector's low-traffic window; no conflict with ingestion"
+    confidence: medium
+    source: "inferred from the collector schedule; can be re-observed after t3 deploys"
+
+open_questions: []                 # no new ambiguity during planning; otherwise needs_input would bounce up here
+
+decisions:
+  - at: 2026-06-16T13:25:00Z
+    by: worker:Plan
+    decision: "t4 marked human_gate; t5 checkpoint inserted with destructive t6 depends_on it; dependency chain t1→t2→t3→t4→t5→t6 acyclic, executable"
+  - at: 2026-06-16T13:28:00Z
+    by: human
+    decision: "Plan sign-off (conditional human gate: full + low reversibility): overall approach and rollback_plan (t5 dump restore point) confirmed; approved for execution"
+
+acceptance:
+  - { item: "every task has an owner and acceptance check", done: true }
+  - { item: "dependencies acyclic", done: true }
+  - { item: "destructive operations have a human gate", done: true }
+  - { item: "low reversibility → rollback_plan complete with checkpoint task (t5)", done: true }
+  - { item: "full + low reversibility → whole plan signed off by user", done: true }

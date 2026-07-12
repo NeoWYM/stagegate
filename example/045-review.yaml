@@ -1,0 +1,71 @@
+meta:
+  doc_id: review-2026-06-16-news-retention
+  stage: review
+  schema_version: 1
+  author: worker:code-review        # strong model; independent of the executor — no player-referee
+  created_at: 2026-06-16T14:11:00Z
+  updated_at: 2026-06-16T14:14:00Z
+
+status: approved
+upstream_ref:
+  - req-2026-06-16-news-retention   # requirement intent (delete >30d, dry-run first)
+  - plan-2026-06-16-news-retention  # the original plan
+  - exec-2026-06-16-news-retention  # the implementation artifact (cleanup_articles.py, CronJob)
+frozen_at: 2026-06-16T14:14:00Z
+
+summary: >
+  This lap's artifact is code (deletion script + CronJob) on a full route with low
+  reversibility, so stage 4.5 triggers. White-box review of cleanup_articles.py and
+  the manifest against requirement intent + quality. verdict=pass: no blocking
+  findings, but two non-blocking findings feed forward — f1 is the root cause of
+  the execution stage's "elevated lock waits" deviation, which black-box
+  verification saw only as a symptom and waved through.
+
+content:
+  findings:
+    - id: f1
+      severity: medium               # non-blocking; doesn't hold the gate, but must reach the backlog
+      location: "scripts/cleanup_articles.py: DELETE ... WHERE published_at < %s"
+      issue: >
+        The delete predicate filters on published_at, but that column is unindexed
+        → sequential scan + widened row-lock range. This is precisely the root
+        cause of the lock waits that forced BATCH from 5000 down to 2000 during
+        execution; shrinking the batch treats the symptom. Recommend an index on
+        published_at, otherwise this recurs as the table grows.
+      against_requirement: "ac1 daily run succeeds — passes today, but long-term stability is in question (maps to the observation window)"
+    - id: f2
+      severity: low
+      location: "scripts/cleanup_articles.py: now() - interval '30 days'"
+      issue: >
+        now() takes the DB session's timezone. No boundary issue today, but if the
+        session timezone ever changes, the 30-day cutoff shifts by a day. Recommend
+        an explicit timezone, or published_at < (CURRENT_DATE - 30) to pin the
+        day boundary.
+      against_requirement: "ac2 no rows older than 30 days — boundary semantics; currently conforming"
+    - id: f3
+      severity: info
+      location: "scripts/cleanup_articles.py: DRY_RUN env gate"
+      issue: >
+        DRY_RUN flag and BATCH parameterization with per-batch commits releasing
+        locks — clean implementation, matches the "dry-run first" intent. No change
+        needed.
+      against_requirement: "ac3 dry-run first — correctly implemented"
+  verdict: pass                       # no blocking findings; released to stage 5; f1/f2 go to the backlog
+
+assumptions: []
+
+open_questions: []                    # no blocking findings; no needs_input bounce-up
+
+decisions:
+  - at: 2026-06-16T14:14:00Z
+    by: worker:code-review
+    decision: >
+      verdict=pass, released to verification. f1 (missing index) is a long-term
+      stability risk — recommend including it in the observation metrics and
+      feeding it forward into the backlog; f2 filed as a follow-up improvement.
+      Neither blocks; no bounce back to 4.
+
+acceptance:
+  - { item: "every finding has severity and location", done: true }
+  - { item: "verdict decided (pass|rework)", done: true }
+  - { item: "blocking findings cleared or bounced back", done: true }

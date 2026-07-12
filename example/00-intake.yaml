@@ -1,0 +1,43 @@
+meta:
+  doc_id: intake-2026-06-16-news-retention
+  stage: intake
+  schema_version: 1
+  author: orchestrator
+  created_at: 2026-06-16T12:58:00Z
+  updated_at: 2026-06-16T12:58:00Z
+
+status: approved
+upstream_ref: []                   # first stage: consumes only user intent + backlog
+frozen_at: 2026-06-16T12:58:00Z
+
+summary: >
+  Raw request involves DB deletion (destructive, low reversibility). Scale looks
+  like a point change, but the blast radius is high, so route=full — no fast-path.
+  Observation window retained (deletion behavior needs long-term confirmation).
+
+content:
+  raw_request: "The news DB keeps growing — add a daily cleanup CronJob that deletes old articles"
+  route: full                      # fast | full; defaults heavy
+  signals:
+    risk: high                     # DB deletion — destructive
+    scope: small                   # on the surface, a single CronJob
+    known_pattern: false           # no same-shape precedent in the backlog
+    reversibility: low             # deleted data is unrecoverable
+  skipped_stages: []               # full → nothing skipped
+  rationale: >
+    Small in scale, but "destructive OR low-reversibility" alone forces the heavy
+    route. Default full; any downstream stage may escalate further if it turns out
+    more complex, but downgrading is not allowed.
+
+assumptions: []
+
+open_questions: []                 # triage doesn't probe requirement details, only process weight
+
+decisions:
+  - at: 2026-06-16T12:58:00Z
+    by: orchestrator
+    decision: "route=full (destructive + low reversibility); keep observation window; proceed to requirements"
+
+acceptance:
+  - { item: "route decided", done: true }
+  - { item: "default-heavy principle applied", done: true }

@@ -1,0 +1,58 @@
+meta:
+  doc_id: retro-2026-06-16-news-retention
+  stage: retrospective
+  schema_version: 1
+  author: orchestrator
+  created_at: 2026-06-23T05:00:00Z   # retrospective runs only after the observation window closed (06-23)
+  updated_at: 2026-06-23T05:10:00Z
+
+status: approved
+upstream_ref:
+  - req-2026-06-16-news-retention
+  - env-2026-06-16-news-retention
+  - plan-2026-06-16-news-retention
+  - exec-2026-06-16-news-retention
+  - verify-2026-06-16-news-retention
+  - observe-2026-06-16-news-retention
+frozen_at: 2026-06-23T05:10:00Z
+
+summary: >
+  Task complete, verified, and promoted after a 7-day observation window. User
+  accepts the outcome. The improvement (published_at index) feeds forward into the
+  backlog as a follow-up and does not block closure.
+
+content:
+  outcomes:
+    - "news-cleanup CronJob live; deletes >30-day articles daily at 04:00 local"
+    - "First cleanup removed 41,237 rows; no expired rows since"
+    - "Dry-run-first + human_gate flow worked as designed; the destructive deletion was human-approved throughout"
+    - "All 7-day observation metrics held; promoted (see 055-observation)"
+  improvements:
+    - id: imp1
+      text: "published_at lacks an index (env g2); deletes slow down as data grows — add one as an independent change"
+      action: "Written to backlog as imp-2026-06-16-01 (open); a schema change deserving its own pipeline lap"
+      priority: low
+    - id: imp2
+      text: "BATCH 5000→2000 was an ad-hoc mid-execution adjustment; the value should be estimated from table size at planning time"
+      action: "Promoted to standing_fact sf-news-cleanup, plus planning-stage feedback: default destructive batch sizes conservatively"
+      priority: low
+  backlog_sync:                     # feed-forward: what this lap wrote into the cross-iteration layer
+    improvements_written: [imp-2026-06-16-01]
+    standing_facts_written: [sf-news-schema, sf-news-cleanup]
+    iteration_log: news-retention
+  next_iteration: done             # continue | done | abort | spawn
+
+assumptions: []
+
+open_questions: []
+
+decisions:
+  - at: 2026-06-23T05:05:00Z
+    by: human
+    decision: "Outcome accepted; lap closed. imp1 (index) opened as a follow-up, not urgent."
+
+acceptance:
+  - { item: "assumptions/deviations/failures/observation results aggregated", done: true }
+  - { item: "improvements and promoted facts fed forward into the backlog", done: true }
+  - { item: "next_iteration explicit (one of four)", done: true }
+  - { item: "user signed off on acceptance or next step", done: true }

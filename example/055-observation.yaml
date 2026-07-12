@@ -1,0 +1,52 @@
+meta:
+  doc_id: observe-2026-06-16-news-retention
+  stage: observation
+  schema_version: 1
+  author: worker:workload-recon    # schedule-triggered; re-checks only after the window expires
+  created_at: 2026-06-16T14:22:00Z
+  updated_at: 2026-06-23T04:30:00Z  # updated and judged only after window expiry
+
+# 14:22 created and wake-up scheduled (observe_until=06-23); status starts needs_input (waiting on the window)
+# 06-23 woke up, re-checked; metrics held → approved, promote
+status: approved
+upstream_ref:
+  - req-2026-06-16-news-retention   # for the acceptance criteria
+  - verify-2026-06-16-news-retention
+frozen_at: 2026-06-23T04:30:00Z
+
+summary: >
+  Observed for 7 days. Daily cleanup job succeeded every day with no errors, the
+  article table's row count stayed bounded within the retention window, and lock
+  waits remained normal after the BATCH=2000 adjustment. Metrics held — promote.
+
+content:
+  observe_until: 2026-06-23T00:00:00Z   # Time gate: no verdict before this
+  sample_threshold: ">=6 successful daily runs"
+  metrics:
+    - name: "daily_job_success"
+      baseline: "expected 1 success per day"
+      observed: "7/7 succeeded, exit 0, no error logs"
+      hold: true
+    - name: "table_row_bounded"
+      baseline: "no rows >30 days after each run"
+      observed: "0 expired rows on every daily re-check; total row count stable at ~460k"
+      hold: true
+    - name: "lock_wait"
+      baseline: "deletion causes no significant lock waits"
+      observed: "lock waits < 1s since BATCH=2000; no collector write conflicts"
+      hold: true
+  decision: promote                 # promote | rollback; a rollback would follow 03's rollback_plan (t5 dump restore) — never an improvised escape route
+
+assumptions: []
+
+open_questions: []
+
+decisions:
+  - at: 2026-06-23T04:30:00Z
+    by: worker:workload-recon
+    decision: "All metrics held over 7 days; promote. The execution-stage BATCH adjustment is validated long-term."
+
+acceptance:
+  - { item: "observe_until expired", done: true }
+  - { item: "sample threshold met (>=6 successes)", done: true }
+  - { item: "every metric has baseline/observed/hold", done: true }

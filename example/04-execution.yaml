@@ -1,0 +1,66 @@
+meta:
+  doc_id: exec-2026-06-16-news-retention
+  stage: execution
+  schema_version: 1
+  author: worker:execution
+  created_at: 2026-06-16T13:30:00Z
+  updated_at: 2026-06-16T14:10:00Z
+
+status: approved
+upstream_ref:
+  - plan-2026-06-16-news-retention
+frozen_at: 2026-06-16T14:10:00Z
+
+summary: >
+  All six tasks complete. t4's dry-run measured 41,237 rows to delete; approved by
+  the user via the orchestrator. t5 landed the pre-delete dump as the restore point
+  (restore_point_ref) before t6 cut over to real deletion. One deviation: the first
+  real deletion batch took longer than expected; batch size adjusted.
+
+content:
+  results:
+    - task_id: t1
+      status: done
+      output_ref: "scripts/cleanup_articles.py (supports DRY_RUN)"
+      deviation: null
+    - task_id: t2
+      status: done
+      output_ref: "CI pipeline #4821 green; image tag news-cleanup:2026.06.16"
+      deviation: null
+    - task_id: t3
+      status: done
+      output_ref: "cronjob/news-cleanup, schedule '0 20 * * *' UTC = 04:00 local, DRY_RUN=true"
+      deviation: null
+    - task_id: t4
+      status: done
+      output_ref: "dry-run job reports 41,237 rows with published_at < now()-30d"
+      deviation: "human_gate: deletion volume reported to the user via the orchestrator; approval obtained at 13:55"
+    - task_id: t5
+      status: done
+      output_ref: "pre-delete dump: COPY of 41,237 articles rows + related article_sources rows to s3://backup/news-cleanup/2026-06-16/pre-delete.dump"
+      deviation: null
+    - task_id: t6
+      status: done
+      output_ref: "patched DRY_RUN=false; first real deletion triggered manually, 41,237 rows deleted"
+      restore_point_ref: "s3://backup/news-cleanup/2026-06-16/pre-delete.dump (produced by t5; landed before deletion — destructive step released only then)"
+      deviation: "First deletion batch showed elevated lock waits; batch size lowered from 5000 to 2000, back to normal; CronJob env BATCH=2000 updated"
+
+assumptions: []
+
+open_questions: []                 # execution proceeded cleanly; no needs_input triggered
+
+decisions:
+  - at: 2026-06-16T13:55:00Z
+    by: human
+    decision: "Reviewed dry-run count of 41,237; approved cutover to real deletion"
+  - at: 2026-06-16T14:02:00Z
+    by: worker:execution
+    decision: "t5 checkpoint complete, restore_point_ref landed; destructive t6 released (recovery precondition satisfied)"
+  - at: 2026-06-16T14:10:00Z
+    by: worker:execution
+    decision: "BATCH lowered 5000 → 2000 to reduce lock waits; recorded as deviation for verification to assess"
+
+acceptance:
+  - { item: "all non-blocked tasks done", done: true }
+  - { item: "deviations from plan recorded", done: true }
+  - { item: "destructive task (t6) restore_point_ref filled", done: true }
