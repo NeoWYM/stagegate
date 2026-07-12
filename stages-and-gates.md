@@ -37,40 +37,38 @@ Interactive stages (0, 1, 6) are run by the orchestrator; 2–5.5 are autonomous
 ## Overall flow
 
 ```text
-   ┌──────────┐
-   │ backlog  │◄─────────── feed-forward (improvements/facts/exit decisions) ──┐
-   │ (x-iter) │──── read back ──┐                                              │
-   └──────────┘                 │                                              │
-        ┌───────────────────────┼────────────────────────────────────────────┐│
-        │              ORCHESTRATOR (foreground)                              ││
-        │                       ▼                                            ││
-   user ⇄ 0. triage ── route ──► fast-path ───────────────┐                   ││
-        │      │  (provisional, defaults heavy)            │                   ││
-        │      ▼ full                                      │                   ││
-   user ⇄ 1. requirements ──approved──┐                   │                   ││
-        │      ▲   ▲ re-route (escalate)│                  │                   ││
-        │      │   └──────────────┐     ▼                  │                   ││
-        │      │ answers    2. environment (worker)        │                   ││
-        │      │            needs_input ◄──┤               │                   ││
-        │      │                           ▼               │                   ││
-        │  ┌── tight loop ── 3. planning (worker)          │                   ││
-        │  │   needs_input ◄────────┤                      │                   ││
-        │  │                        ▼                      ▼                   ││
-        │  │                 4. execution (worker) ◄───────┘                   ││
-        │  │   needs_input ◄────────┤                                          ││
-        │  │                        ▼                                          ││
-        │  │       4.5 review (worker, code only) ──skip if non-code──┐        ││
-        │  │   rework→back to 4/1 ◄──┤                                │        ││
-        │  │                        ▼                                 ▼        ││
-        │  └──────────────── 5. verification (worker) ◄───────────────┘        ││
-        │       fail→back to 4/1 ◄──┤                                          ││
-        │                           ▼                                          ││
-        │            5.5 observation (worker, scheduled) ⏰ wakes N days later ││
-        │              fail→back to 4/1 ◄──┤                                   ││
-        │                           ▼                                          ││
-   user ⇄ 6. retrospective ──approved──┴─ wide loop: next=continue → stage 0 ──┘│
-        │                                 next=done → end                      │
-        └──────────────────────────────────────────────────────────────────────┘
+             (triage reads improvements + standing_facts from the backlog)
+
+user <──> 0. triage ─────────────── route=fast ───────────────┐
+              │ route=full                                     │
+              ▼                                                │  fast-path skips
+user <──> 1. requirements ◄────────────────┐                   │  2 / 3 / 4.5 / 5.5
+              │ approved                   │                   │  (never allowed for
+              ▼                            │                   │  destructive work)
+          2. environment (worker) ─────────┤                   │
+              │ approved                   │                   │
+              ▼                            │  needs_input:     │
+          3. planning (worker) ────────────┤  bounce up to     │
+              │ approved                   │  orchestrator,    │
+              ▼                            │  ask the user,    │
+          4. execution (worker) ◄──────────┤  merge answers,   │
+              │ done                       │  re-run stage.    │
+              ▼                            │                   │
+          4.5 review (worker, code only) ──┤  re-route:        │
+              │ pass          │            │  escalate and     │
+              │               └─ rework ─► │  back-fill        │
+              ▼                  back to 4 │  skipped stages.  │
+          5. verification (worker) ◄───────┴───────────────────┘
+              │ pass          └─ fail ─► back to 4 (or 1)
+              ▼
+          5.5 observation (worker, scheduled)  ⏰ wakes after observe_until
+              │ held          └─ fail ─► back to 4 (or 1), rollback per 03's plan
+              ▼
+user <──> 6. retrospective ── writes improvements / facts / log to the backlog
+              │
+              ├── continue ──► new lap (back to 0, backlog feeds forward)
+              ├── done / abort ──► end
+              └── spawn ──► fork an independent task
 ```
 
 - **Tight loop (within a lap)**: `needs_input` bounce-ups and verify/observation failures return to the previous working stage. Fixed within the same lap.

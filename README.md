@@ -17,11 +17,15 @@ Agents are good at doing work and bad at knowing when to stop and ask. Left alon
 ## The pipeline
 
 ```text
-0 triage → 1 requirements → 2 environment → 3 planning → 4 execution
-        → 4.5 review → 5 verification → 5.5 observation → 6 retrospective
-  ▲(interactive) (interactive) (worker)  (worker)   (worker)
-   (worker, code only)  (worker)   (scheduled)   (interactive)▲
-  └─ Route gate  └─ Human gate                        Human gate ─┘
+0    triage          orchestrator, interactive    ── Route gate: fast | full (defaults full)
+1    requirements    orchestrator, interactive    ── Human gate: user sign-off
+2    environment     worker, read-only recon
+3    planning        worker                       ── Human gate when destructive / low-reversibility
+4    execution       worker                       ── destructive steps blocked until restore point lands
+4.5  review          worker, code laps only       ── skipped for non-code artifacts
+5    verification    worker, independent of executor
+5.5  observation     worker, scheduled            ── Time gate: no verdict before observe_until
+6    retrospective   orchestrator, interactive    ── Human gate: next_iteration
 ```
 
 - **Fast-path**: triage can short-circuit small tasks past some stages — but routes only ever escalate, never downgrade, and destructive/low-reversibility tasks can never take the fast path.
