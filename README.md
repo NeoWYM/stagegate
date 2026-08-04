@@ -12,14 +12,15 @@ Agents are good at doing work and bad at knowing when to stop and ask. Left alon
 2. **Stages hand off through frozen documents, not conversation memory.** Each stage consumes only `approved` upstream documents and produces one of its own. Context exhaustion can't lose the state; a fresh session can resume from the documents.
 3. **Gates are typed.** Human gates (requirements, retrospective, and planning when the task is destructive), a route gate (triage), a time gate (observation — "passing now" is not "still passing next week"), and auto gates with mechanical exit criteria.
 4. **Destructive work requires a way back before it runs.** Low-reversibility tasks force a `rollback_plan` plus a checkpoint task in planning; the destructive step is blocked until a restore point is verified restorable — not merely "the backup file exists."
-5. **A backlog layer makes it a loop.** Improvements and promoted facts from each retrospective feed forward into the next iteration's triage and environment stages.
+5. **Capabilities are proven, not presumed.** Before planning starts, every external API, permission, and quota the requirements depend on is exercised with one minimal real call. Documentation saying a thing exists is not evidence that your account can do it — and finding out after execution means rolling back the whole lap.
+6. **A backlog layer makes it a loop.** Improvements and promoted facts from each retrospective feed forward into the next iteration's triage and environment stages.
 
 ## The pipeline
 
 ```text
 0    triage          orchestrator, interactive    ── Route gate: fast | full (defaults full)
 1    requirements    orchestrator, interactive    ── Human gate: user sign-off
-2    environment     worker, read-only recon
+2    environment     worker, read-only recon      ── capability probes must pass before planning
 3    planning        worker                       ── Human gate when destructive / low-reversibility
 4    execution       worker                       ── destructive steps blocked until restore point lands
 4.5  review          worker, code laps only       ── skipped for non-code artifacts
@@ -28,7 +29,7 @@ Agents are good at doing work and bad at knowing when to stop and ask. Left alon
 6    retrospective   orchestrator, interactive    ── Human gate: next_iteration
 ```
 
-- **Fast-path**: triage can short-circuit small tasks past some stages — but routes only ever escalate, never downgrade, and destructive/low-reversibility tasks can never take the fast path.
+- **Fast-path**: triage can short-circuit small tasks past some stages — but routes only ever escalate, never downgrade, and destructive/low-reversibility tasks — and tasks depending on an external capability that has never been exercised — can never take the fast path.
 - **Tight loop** (within an iteration): `needs_input`, review rework, and verification/observation failures bounce back to the appropriate upstream stage.
 - **Wide loop** (across iterations): retrospective ends with `next_iteration: continue | done | abort | spawn`; improvements are already in the backlog for the next lap.
 

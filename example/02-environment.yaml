@@ -16,7 +16,8 @@ summary: >
   No cleanup mechanism exists today. published_at is unindexed; at 30-day retention
   the one-off deletion volume is manageable, but batched deletion is recommended to
   avoid long locks. The news namespace already has a collector CronJob whose
-  conventions can be followed.
+  conventions can be followed. All three depended-on capabilities (DELETE privilege,
+  CronJob creation permission, statement_timeout headroom) were probed and pass.
 
 content:
   current_state:
@@ -34,6 +35,19 @@ content:
     - id: g2
       text: "published_at unindexed; WHERE scan for bulk deletes is slow-ish but acceptable"
   blockers: []                     # nothing blocking; no needs_input required
+  capability_probes:               # one minimal real call per external capability the requirements depend on
+    - name: "write role can actually DELETE from news.articles"
+      probe_cmd: "psql -U news_rw -c 'BEGIN; DELETE FROM news.articles WHERE false; ROLLBACK;'"
+      result: pass
+      evidence: "no permission error; rolled back, zero rows touched — the privilege was exercised, not read out of the catalog"
+    - name: "permission to create a CronJob in the news namespace"
+      probe_cmd: "kubectl auth can-i create cronjob -n news"
+      result: pass
+      evidence: "returned yes"
+    - name: "statement_timeout headroom for batched deletes"
+      probe_cmd: "psql -c 'show statement_timeout'"
+      result: pass
+      evidence: "0 (unlimited) — a 5k batch will not be cut off"
 
 assumptions:
   - id: a1
@@ -56,3 +70,4 @@ acceptance:
   - { item: "current_state survey complete", done: true }
   - { item: "gaps listed", done: true }
   - { item: "no unresolved requirement/environment conflicts", done: true }
+  - { item: "every capability probe passed", done: true }

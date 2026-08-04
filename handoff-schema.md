@@ -44,6 +44,14 @@ summary: >
 content:                            # stage-specific payload; structure per stage
   # requirements:
   #   goal / scope / non_goals / constraints / acceptance_criteria
+  # environment:
+  #   current_state / gaps[] / blockers[]
+  #   + capability_probes[] (name, probe_cmd, result, evidence) — for every external
+  #     API/permission/quota the requirements depend on, evidence from one minimal
+  #     real call; never presumed from documentation or memory. Any result other
+  #     than pass ⇒ goes into blockers[] and status: needs_input
+  #     (the failure this prevents: a whole lap finished before discovering the
+  #      assumed API does not exist for that account tier — total rollback)
   # planning:
   #   tasks[] (id, desc, depends_on, owner, est, acceptance, human_gate)
   #   destructive/low-reversibility additionally: rollback_plan

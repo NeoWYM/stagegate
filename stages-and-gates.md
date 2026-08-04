@@ -87,7 +87,7 @@ user <──> 6. retrospective ── writes improvements / facts / log to the b
   - Known pattern: does the backlog hold a same-shape precedent?
   - Reversibility: if it goes wrong, how hard is the way back?
 - **Output**: `route` (`fast` | `full`) + rationale. **Provisional, defaults heavy** — when in doubt, `full`.
-- **Exit gate (Route gate)**: route decided. `fast` → a reduced subset (e.g. 1→4→5, skipping 2/3/4.5/5.5); `full` → all 9 stages (4.5 still conditional on the artifact being code). **Destructive or low-reversibility tasks may never take `fast`** — the fast path skips planning, so there would be no checkpoint task, and the recovery precondition (rule 10) would deadlock execution. This is the hard reason "destructive or low-reversibility ⇒ heavy", not mere conservatism.
+- **Exit gate (Route gate)**: route decided. `fast` → a reduced subset (e.g. 1→4→5, skipping 2/3/4.5/5.5); `full` → all 9 stages (4.5 still conditional on the artifact being code). **A task depending on an external API / permission / quota that has never been exercised may not take `fast`** — the fast path skips stage 2, so there is no capability probe, and a capability that turns out not to exist only blows up after execution. **Destructive or low-reversibility tasks may never take `fast`** — the fast path skips planning, so there would be no checkpoint task, and the recovery precondition (rule 10) would deadlock execution. This is the hard reason "destructive or low-reversibility ⇒ heavy", not mere conservatism.
 - **Re-route (critical)**: the route is not final. Any downstream stage discovering "looked small, isn't" can **escalate** the route and back-fill the skipped stages. Downgrading is never allowed (you may only move toward more rigor, never less).
 - **Required `content` fields**: `route` / `signals` (risk, scope, known_pattern, reversibility) / `skipped_stages[]` / `rationale`.
 
@@ -106,8 +106,11 @@ user <──> 6. retrospective ── writes improvements / facts / log to the b
 - **Owner**: Worker (read-only recon — infra health checks, workload state, schema inspection, file reading).
 - **Entry**: `01` approved.
 - **What it does**: surveys the gap between current state and the requirements (versions, capacity, permissions, existing resources). Makes no changes.
-- **Exit gate**: gap survey complete. If requirements conflict with reality (e.g. an assumed resource doesn't exist) → open a blocking open_question and bounce up with `needs_input`.
-- **Required `content` fields**: `current_state` / `gaps[]` / `blockers[]`.
+  - **Capability probe (mandatory)**: list every external API / permission / quota / resource the requirements depend on, and **prove each one usable with a single minimal real call** — never presume it from official documentation, memory, or "it should be there". Probes are read-only and must not mutate state; when credentials are involved, judge success by the response code alone and never have the worker print the secret in the clear (read-only tooling does not stop an agent from reading a secret out and echoing it into a document).
+- **Exit gate**: gap survey complete **and every probe passes**. Any probe that fails or cannot be run → record it in `blockers[]` and bounce up with `needs_input`; it **must not proceed to planning**. If requirements conflict with reality (e.g. an assumed resource doesn't exist) → likewise open a blocking open_question.
+- **Required `content` fields**: `current_state` / `gaps[]` / `blockers[]` / `capability_probes[]` (name, probe_cmd, result, evidence).
+
+> Why the probe is separate from the gap survey: the gap survey asks "how far is reality from the requirements", and in doing so presumes the capability exists; the probe asks "does this capability exist at all". The failure mode this prevents is a whole lap — research, implementation, self-verification, all complete — collapsing at the end because the API endpoint the requirement assumed simply does not exist for that account tier, forcing a total rollback. One real call inside the first fifteen minutes stops the entire sunk cost at the door. The same shape recurs whenever a tool or framework is evaluated on its documentation and only measured after it has been adopted.
 
 ### 3. Planning 〔Auto, may needs_input; destructive/low-reversibility → Human〕
 

@@ -16,7 +16,7 @@ A typical "small task with hidden ambiguity": the retention period was never sta
 |------|-------|-----------------|
 | `00-intake.yaml` | triage | Routes on coarse signals without pinning requirements; destructive + low-reversibility → `full`, no fast-path |
 | `01-requirements.yaml` | requirements | The `needs_input` → user answers → `approved` loop via open_questions |
-| `02-environment.yaml` | environment | Read-only recon; records "no index" as an assumption instead of adding one on its own |
+| `02-environment.yaml` | environment | Read-only recon; capability probes prove the depended-on privileges before planning; records "no index" as an assumption instead of adding one on its own |
 | `03-plan.yaml` | planning | Destructive task marked `human_gate`; dry-run first; **low reversibility → `rollback_plan` + t5 checkpoint task inserted; whole plan signed off by the user** |
 | `04-execution.yaml` | execution | Actual results plus one recorded deviation; **t5 lands the restore point (`restore_point_ref`) before destructive t6 runs** |
 | `045-review.yaml` | review | **Code only**: white-box look at the deletion script; f1 pins the execution stage's "lock waits" deviation to its root cause (missing index) — the layer black-box verification can't see |

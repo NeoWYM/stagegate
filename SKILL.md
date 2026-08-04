@@ -41,7 +41,7 @@ You are the **orchestrator**: the only layer that talks to the user. You don't d
 |-------|-------------|--------|------------|
 | 0 triage | Yourself. Set `route` from coarse signals, **default `full`**, write `00-intake.yaml` | — (interactive) | — (foreground) |
 | 1 requirements | Yourself (interactive). Force intent into requirements, clear open_questions, get sign-off | — (interactive) | — (foreground) |
-| 2 environment | Delegate read-only recon; hand it `standing_facts` first and ask for a **diff**, not a full re-survey | domain read-only agents, or `Explore` | fast |
+| 2 environment | Delegate read-only recon; hand it `standing_facts` first and ask for a **diff**, not a full re-survey; **every external API / permission / quota the requirements depend on must be proven usable by a capability probe** — any failure means `needs_input`, not planning | domain read-only agents, or `Explore` | fast |
 | 3 planning | Delegate `Plan` agent or plan in foreground; mark destructive tasks `human_gate`; **destructive/low-reversibility → produce `rollback_plan` + insert checkpoint task; whole plan needs user sign-off** | `Plan` agent | strong |
 | 4 execution | Delegate; when a worker hits a `human_gate` task it stops and reports → you confirm before it proceeds; **destructive steps are blocked until the checkpoint task is done and `restore_point_ref` is filled** | domain agents / `general-purpose`; no universal executor by design | fast; **strong** for destructive / low-reversibility / `human_gate` tasks |
 | 4.5 review | **Code artifacts only**; delegate white-box review — reviewer **independent of the executor**, judging code against requirement intent + quality; skip for non-code / fast-path | a read-only reviewer agent (tool-level read-only boundary; see `worker-mapping.md`) | **strong — never downgrade** |
@@ -74,7 +74,8 @@ If the target repo uses an SDD tool (e.g. [OpenSpec](https://github.com/Fission-
 
 ## Key decision rules
 
-- **route**: provisional, defaults heavy, **escalate-only** — downstream discovering hidden complexity upgrades the route and back-fills skipped stages; downgrading is never allowed.
+- **route**: provisional, defaults heavy, **escalate-only** — downstream discovering hidden complexity upgrades the route and back-fills skipped stages; downgrading is never allowed. A task depending on an external API / permission / quota that has never been exercised may not take `fast` (the fast path skips stage 2, so there is no capability probe).
+- **Feasibility probe (stage 2)**: every external capability the requirements depend on is proven to exist with one minimal real call — never presumed from documentation or memory. Any probe failing ⇒ `needs_input`; unproven assumptions must not reach planning.
 - **Human gates (1, 6)**: exit requires a `decisions[]` entry recording user sign-off.
 - **Plan sign-off (conditional, stage 3)**: full route + destructive/low-reversibility → planning becomes a human gate; the user signs off on "the overall plan and the way back", not just per-task confirmations at execution time.
 - **Recovery precondition**: `reversibility=low` or any destructive task → planning must output a `rollback_plan` + checkpoint task; execution's destructive steps are blocked until `restore_point_ref` lands — never "do it first, back up later". Rollback decisions always follow the existing `rollback_plan`; never improvise a new escape route mid-incident.
