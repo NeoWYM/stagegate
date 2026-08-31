@@ -20,6 +20,7 @@ The pipeline is a state machine. Every stage has an explicit **owner** (who exec
 
 | # | Stage | Owner | Input | Output | Gate type |
 |---|-------|-------|-------|--------|-----------|
+| -1 | premise liveness check | **Orchestrator** | user intent, `backlog`/memory | folded into `00-intake.yaml` | Pre-check (conditional) |
 | 0 | triage | **Orchestrator** | user intent, `backlog` | `00-intake.yaml` | Route gate |
 | 1 | requirements | **Orchestrator** | `00` | `01-requirements.yaml` | **Human gate** |
 | 2 | environment | Worker | `01`, `backlog` | `02-environment.yaml` | Auto |
@@ -30,7 +31,7 @@ The pipeline is a state machine. Every stage has an explicit **owner** (who exec
 | 5.5 | observation | Worker (scheduled) | `01`, `05` | `055-observation.yaml` | Time gate |
 | 6 | retrospective | **Orchestrator** | everything, `backlog` | `06-retrospective.yaml` | **Human gate** |
 
-Interactive stages (0, 1, 6) are run by the orchestrator; 2–5.5 are autonomous workers.
+Interactive stages (0, 1, 6) are run by the orchestrator; 2–5.5 are autonomous workers. **-1 is a conditional pre-check**, triggered only when intent points at an existing concrete target; the orchestrator does it directly, no separate worker.
 
 **Triage can short-circuit**: the `route` in `00` decides between the full 9 stages and a fast-path (e.g. a single non-code parameter change may skip 2/3/4.5/5.5 and run only 1→4→5). Not every lap deserves full weight.
 
@@ -76,6 +77,22 @@ user <──> 6. retrospective ── writes improvements / facts / log to the b
 - Whenever any worker raises `needs_input`, control returns to the orchestrator → ask the user → merge answers → re-run that stage. All human intervention points converge on the orchestrator.
 
 ## Stage details
+
+### -1. Premise liveness check 〔Pre-check, conditional〕
+
+- **Owner**: Orchestrator (before any interaction, very lightweight — usually one real command, no worker session).
+- **Trigger condition**: the user's intent **points at an existing, concrete target** (a feature, pipeline, CronJob, table, or known service) — not a brand-new build. A new feature has no "existing premise" to verify, so this check does not fire.
+- **Entry**: user has stated intent; not yet in `0. Triage`.
+- **What it does**: with **one minimal, real, read-only command** (not a doc lookup, not memory), confirm:
+  1. The target code path / CronJob / table / service **still exists and has not been retired or superseded** (e.g. `kubectl get cronjob`, grep the routing in code, check backlog/memory for a "retired" note).
+  2. Backlog/memory has no existing record that contradicts this intent (e.g. the same thing was already closed, or already replaced by another feature).
+  - If it's unclear whether the target is still alive, **do not** skip the check on the assumption "it's probably still there" — that assumption is exactly what caused two prior rounds to burn a full set of proposal/design/tasks artifacts before discovering the premise was invalid.
+- **Exit gate**: emit `PROCEED` or `ABORT`, with evidence (command output / file path).
+  - `PROCEED` → continue normally into `0. Triage`; the evidence is recorded in `00-intake.yaml`'s `content.premise_check` (see `handoff-schema.md`).
+  - `ABORT` → report the finding to the user on the spot. **Do not create any artifact downstream of `00-intake.yaml`, and especially do not trigger an SDD/spec-driven-development proposal step** — the proposal/design/tasks artifacts that step produces are exactly the sunk cost this check exists to avoid. If the user confirms a different target/scope, re-run this check.
+- **No separate YAML needed**: the verdict is folded into `00-intake.yaml`; without a `PROCEED` there is no such document.
+
+> Why this sits before triage rather than inside it: an SDD proposal step (where one is wired in) typically fires right after requirements sign-off — earlier than stage 2's environment capability probe. Whether the premise is still alive and whether an external capability is available are two different questions; the capability probe cannot be relied on to catch "the target isn't there anymore." Placing this check ahead of the entire pipeline, earlier than triage itself, is what stops the sunk cost before a proposal step ever fires.
 
 ### 0. Triage 〔Route gate〕
 
@@ -183,6 +200,7 @@ user <──> 6. retrospective ── writes improvements / facts / log to the b
     - **Destructive/low-reversibility never takes fast-path**: fast-path skips planning (3), so no checkpoint task would exist and rule 10 would deadlock execution. Hence such tasks are always `full` — the route gate must not emit `fast` for them.
 11. **Plan sign-off (conditional human gate, stage 3)**: full route + destructive/low-reversibility tasks → planning's exit becomes a human gate; `decisions[]` must record the user's sign-off on "the overall plan and the way back" (distinct from per-task `human_gate` confirmations at execution time). Simple tasks stay Auto.
 12. **Continuation (wide loop)**: `next_iteration=continue` → back to stage 0 for a new lap, improvements already in backlog; `done`/`abort` → end; `spawn` → fork an independent new task.
+13. **Premise liveness check (-1, conditional)**: when intent points at an existing concrete target, a `PROCEED`/`ABORT` verdict must be produced before `0. Triage` begins; `ABORT` ends the lap right there — no artifact downstream of `00` may be produced, and no SDD/spec-driven-development proposal step may fire. A brand-new build never triggers this check and goes straight into `0. Triage`.
 
 ## Grounding in Claude Code
 

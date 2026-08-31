@@ -39,6 +39,7 @@ You are the **orchestrator**: the only layer that talks to the user. You don't d
 
 | Stage | Your action | Worker | Model tier |
 |-------|-------------|--------|------------|
+| -1 premise liveness check | Triggers only when intent points at an **existing concrete target** (never for a brand-new build). Yourself: one real, read-only command confirming the target still exists and hasn't been retired/superseded; `ABORT` stops right here — don't proceed to 0, don't trigger an SDD proposal step | — (interactive) | — (foreground) |
 | 0 triage | Yourself. Set `route` from coarse signals, **default `full`**, write `00-intake.yaml` | — (interactive) | — (foreground) |
 | 1 requirements | Yourself (interactive). Force intent into requirements, clear open_questions, get sign-off | — (interactive) | — (foreground) |
 | 2 environment | Delegate read-only recon; hand it `standing_facts` first and ask for a **diff**, not a full re-survey; **every external API / permission / quota the requirements depend on must be proven usable by a capability probe** — any failure means `needs_input`, not planning | domain read-only agents, or `Explore` | fast |
@@ -74,6 +75,7 @@ If the target repo uses an SDD tool (e.g. [OpenSpec](https://github.com/Fission-
 
 ## Key decision rules
 
+- **Premise liveness check (-1, conditional)**: triggers only when intent points at an existing concrete target (feature/pipeline/CronJob/table); one real, read-only command must prove the target still exists and hasn't been retired/superseded. `ABORT` forbids producing any artifact downstream of `00`, and especially forbids triggering an SDD proposal step (which typically fires earlier than stage 2's capability probe, so the probe cannot be relied on to catch "the target isn't there anymore").
 - **route**: provisional, defaults heavy, **escalate-only** — downstream discovering hidden complexity upgrades the route and back-fills skipped stages; downgrading is never allowed. A task depending on an external API / permission / quota that has never been exercised may not take `fast` (the fast path skips stage 2, so there is no capability probe).
 - **Feasibility probe (stage 2)**: every external capability the requirements depend on is proven to exist with one minimal real call — never presumed from documentation or memory. Any probe failing ⇒ `needs_input`; unproven assumptions must not reach planning.
 - **Human gates (1, 6)**: exit requires a `decisions[]` entry recording user sign-off.

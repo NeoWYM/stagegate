@@ -17,6 +17,9 @@ summary: >
 
 content:
   raw_request: "The news DB keeps growing — add a daily cleanup CronJob that deletes old articles"
+  premise_check:
+    applicable: false              # brand-new build (new CronJob) — no existing target to verify
+    reason: "This is a new feature, not a modification/fix of an existing pipeline"
   route: full                      # fast | full; defaults heavy
   signals:
     risk: high                     # DB deletion — destructive

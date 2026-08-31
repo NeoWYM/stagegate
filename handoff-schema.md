@@ -42,6 +42,17 @@ summary: >
   document's conclusion quickly.
 
 content:                            # stage-specific payload; structure per stage
+  # intake:
+  #   raw_request / route / signals(risk, scope, known_pattern, reversibility)
+  #   / skipped_stages[] / rationale
+  #   + premise_check (filled only when intent points at an existing concrete target;
+  #     omit or set applicable:false for a brand-new build):
+  #     { applicable: bool, target: str, checks: [{claim, evidence}], verdict: PROCEED|ABORT }
+  #     verdict=ABORT ⇒ this 00-intake.yaml itself is never approved; the lap ends here —
+  #     no downstream document, no SDD proposal step
+  #     (the failure this prevents: two rounds each burned a full recon + proposal/
+  #      design/tasks set before discovering the target had already been retired or
+  #      superseded — see the "-1. Premise liveness check" stage in stages-and-gates.md)
   # requirements:
   #   goal / scope / non_goals / constraints / acceptance_criteria
   # environment:
