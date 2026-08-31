@@ -1,6 +1,6 @@
 # stagegate
 
-A staged, gated task pipeline for [Claude Code](https://claude.com/claude-code) — drive risky, destructive, or long-running tasks through explicit stages (triage → requirements → environment → planning → execution → review → verification → observation → retrospective), with frozen handoff documents between stages, human gates where they matter, and a cross-iteration backlog that turns a linear run into a loop.
+A staged, gated task pipeline for [Claude Code](https://claude.com/claude-code) — drive risky, destructive, or long-running tasks through explicit stages (premise check → triage → requirements → environment → planning → execution → review → verification → observation → retrospective), with frozen handoff documents between stages, human gates where they matter, and a cross-iteration backlog that turns a linear run into a loop.
 
 Ships as a Claude Code **skill**: the orchestrator instructions live in [`SKILL.md`](SKILL.md), with reference documents loaded on demand (progressive disclosure).
 
@@ -14,21 +14,24 @@ Agents are good at doing work and bad at knowing when to stop and ask. Left alon
 4. **Destructive work requires a way back before it runs.** Low-reversibility tasks force a `rollback_plan` plus a checkpoint task in planning; the destructive step is blocked until a restore point is verified restorable — not merely "the backup file exists."
 5. **Capabilities are proven, not presumed.** Before planning starts, every external API, permission, and quota the requirements depend on is exercised with one minimal real call. Documentation saying a thing exists is not evidence that your account can do it — and finding out after execution means rolling back the whole lap.
 6. **A backlog layer makes it a loop.** Improvements and promoted facts from each retrospective feed forward into the next iteration's triage and environment stages.
+7. **Premises are checked before you spend on them.** When intent points at an existing target, one real read-only command must confirm it's still there — not retired, not superseded — before triage even starts. This runs earlier than the capability probe, because a spec-driven-development proposal step (if wired in) typically fires right after requirements sign-off, ahead of the probe; without this pre-check, that step can burn a full proposal/design/tasks set on a target that no longer exists.
 
 ## The pipeline
 
 ```text
-0    triage          orchestrator, interactive    ── Route gate: fast | full (defaults full)
-1    requirements    orchestrator, interactive    ── Human gate: user sign-off
-2    environment     worker, read-only recon      ── capability probes must pass before planning
-3    planning        worker                       ── Human gate when destructive / low-reversibility
-4    execution       worker                       ── destructive steps blocked until restore point lands
-4.5  review          worker, code laps only       ── skipped for non-code artifacts
-5    verification    worker, independent of executor
-5.5  observation     worker, scheduled            ── Time gate: no verdict before observe_until
-6    retrospective   orchestrator, interactive    ── Human gate: next_iteration
+-1   premise check  orchestrator, conditional        ── Pre-check: only when intent targets something existing
+0    triage         orchestrator, interactive        ── Route gate: fast | full (defaults full)
+1    requirements   orchestrator, interactive        ── Human gate: user sign-off
+2    environment    worker, read-only recon          ── capability probes must pass before planning
+3    planning       worker                           ── Human gate when destructive / low-reversibility
+4    execution      worker                           ── destructive steps blocked until restore point lands
+4.5  review         worker, code laps only           ── skipped for non-code artifacts
+5    verification   worker, independent of executor
+5.5  observation    worker, scheduled                ── Time gate: no verdict before observe_until
+6    retrospective  orchestrator, interactive        ── Human gate: next_iteration
 ```
 
+- **Premise pre-check**: runs before route is even decided, and only when intent names an existing target. `ABORT` ends the lap on the spot — no downstream document, no SDD proposal step — since a proposal step (where wired in) fires earlier than the stage-2 capability probe and can't be relied on to catch a retired or superseded target.
 - **Fast-path**: triage can short-circuit small tasks past some stages — but routes only ever escalate, never downgrade, and destructive/low-reversibility tasks — and tasks depending on an external capability that has never been exercised — can never take the fast path.
 - **Tight loop** (within an iteration): `needs_input`, review rework, and verification/observation failures bounce back to the appropriate upstream stage.
 - **Wide loop** (across iterations): retrospective ends with `next_iteration: continue | done | abort | spawn`; improvements are already in the backlog for the next lap.
@@ -38,7 +41,7 @@ Agents are good at doing work and bad at knowing when to stop and ask. Left alon
 | File | Contents | Read when |
 |------|----------|-----------|
 | [`SKILL.md`](SKILL.md) | Orchestrator operating manual (the skill entry point) | Always loaded first |
-| [`stages-and-gates.md`](stages-and-gates.md) | The 9-stage state machine: owners, gates, flow diagram, loop rules | You want to know **how the flow runs** |
+| [`stages-and-gates.md`](stages-and-gates.md) | The 9-stage state machine (plus the conditional stage -1 premise check): owners, gates, flow diagram, loop rules | You want to know **how the flow runs** |
 | [`handoff-schema.md`](handoff-schema.md) | YAML schema and invariants for stage handoff documents | You want to know **how the documents are written** |
 | [`backlog.md`](backlog.md) | Cross-iteration persistence layer schema | You want to know **how iterations connect** |
 | [`worker-mapping.md`](worker-mapping.md) | Mapping stages to worker agents, model selection, delegation protocol | You want to know **who does the work** |
