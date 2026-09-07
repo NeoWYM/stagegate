@@ -55,6 +55,9 @@ content:                            # stage-specific payload; structure per stag
   #      superseded — see the "-1. Premise liveness check" stage in stages-and-gates.md)
   # requirements:
   #   goal / scope / non_goals / constraints / acceptance_criteria
+  #   + ac_review (conditional: required when any acceptance criterion carries a
+  #     statistical threshold; reviewer, per_ac: [{id, fails_when, power_estimate}],
+  #     verdict) — see gate rule 14 in stages-and-gates.md
   # environment:
   #   current_state / gaps[] / blockers[]
   #   + capability_probes[] (name, probe_cmd, result, evidence) — for every external

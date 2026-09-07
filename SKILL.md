@@ -41,7 +41,7 @@ You are the **orchestrator**: the only layer that talks to the user. You don't d
 |-------|-------------|--------|------------|
 | -1 premise liveness check | Triggers only when intent points at an **existing concrete target** (never for a brand-new build). Yourself: one real, read-only command confirming the target still exists and hasn't been retired/superseded; `ABORT` stops right here — don't proceed to 0, don't trigger an SDD proposal step | — (interactive) | — (foreground) |
 | 0 triage | Yourself. Set `route` from coarse signals, **default `full`**, write `00-intake.yaml` | — (interactive) | — (foreground) |
-| 1 requirements | Yourself (interactive). Force intent into requirements, clear open_questions, get sign-off | — (interactive) | — (foreground) |
+| 1 requirements | Yourself (interactive). Force intent into requirements, clear open_questions, get sign-off. **If any acceptance criterion carries a statistical threshold → before sign-off, a fresh strong-model reviewer answers "when does it fail?" and "can the threshold be cleared at the expected sample size?"; record `ac_review`** (gate rule 14) | conditional: read-only reviewer agent (paste the criteria list + expected sample sizes) | foreground; `ac_review` on **strong, high effort** |
 | 2 environment | Delegate read-only recon; hand it `standing_facts` first and ask for a **diff**, not a full re-survey; **every external API / permission / quota the requirements depend on must be proven usable by a capability probe** — any failure means `needs_input`, not planning | domain read-only agents, or `Explore` | fast |
 | 3 planning | Delegate `Plan` agent or plan in foreground; mark destructive tasks `human_gate`; **destructive/low-reversibility → produce `rollback_plan` + insert checkpoint task; whole plan needs user sign-off** | `Plan` agent | strong |
 | 4 execution | Delegate; when a worker hits a `human_gate` task it stops and reports → you confirm before it proceeds; **destructive steps are blocked until the checkpoint task is done and `restore_point_ref` is filled** | domain agents / `general-purpose`; no universal executor by design | fast; **strong** for destructive / low-reversibility / `human_gate` tasks |
@@ -84,6 +84,18 @@ If the target repo uses an SDD tool (e.g. [OpenSpec](https://github.com/Fission-
 - **Time gate (5.5)**: window not expired / sample threshold not met → no early verdict, period.
 - A **destructive task not marked `human_gate`** is a planning defect → bounce back to stage 3.
 - **Freezing**: approved documents are immutable; changing one means a new version re-passing its gate, and re-evaluating whether downstream stages must re-run.
+
+## Budget discipline
+
+Learned from a lap whose token spend went not to the strong-model second opinions but to 24 execution tasks, a 75 KB plan document re-read at every stage, and workers writing delivery reports into docstrings:
+
+- Stage 4 `tasks[]` ≤ 8, `03-plan.yaml` ≤ 15 KB; beyond that, split the lap.
+- Output caps in every worker brief: docstrings ≤ 15 lines; design decisions go into `04-execution.yaml`, not into source.
+- Stage 4.5: one consolidated review pass per lap, brief names the high-risk regions; read-back checks go to the cheapest tier.
+- Split sessions at stage boundaries: 1–3 / 4 / 5–6, each cold-started from the frozen documents.
+- Foreground orchestrator on the fast tier by default; escalating it is the user's manual call. Strong-model second opinions are not the place to save.
+
+Details: the "(budget)" notes per stage in `stages-and-gates.md` and its "Grounding in Claude Code" section.
 
 ## Closing the loop
 
