@@ -72,6 +72,14 @@ content:                            # stage-specific payload; structure per stag
   #     (trigger, method, restore_point, rpo, owner)
   #   + tasks[] must contain one checkpoint task (produces the restore point),
   #     with destructive tasks depends_on it
+  #   laps changing deployments/infrastructure/credentials/CI config additionally:
+  #     preflight (external_artifacts[] (name, probe_cmd, result), new_objects[],
+  #     secret_exposure) — external_artifacts also holds the server-side
+  #     acceptance probe for every new object that plan/dry-run never validates
+  #     (e.g. DDL inside BEGIN … ROLLBACK on the database that will own it)
+  #     (the failure this prevents: a role name the database reserves passed
+  #      plan and review, and failed only at apply after part of the plan
+  #      had already been created)
   #   + checkpoint and its later verify task must be SYMMETRIC: whatever
   #     snapshots the checkpoint captured (disk usage, object lists,
   #     restart counts, ...), the verify task must capture the same set

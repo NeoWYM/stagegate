@@ -74,6 +74,21 @@ content:
     rpo: "the moment before deletion — dump and DELETE share the same published_at<30d boundary; zero data loss"
     owner: "orchestrator (DB restore is destructive; executed manually via the DB channel, not decided by a worker)"
 
+  # the lap deploys a CronJob and builds an image → content must include preflight
+  preflight:
+    external_artifacts:
+      - name: "base image python:3.12-slim (pinned in t2's Dockerfile)"
+        probe_cmd: "curl -sf https://hub.docker.com/v2/repositories/library/python/tags/3.12-slim"
+        result: "pass (tag exists)"
+      - name: "server-side acceptance: CronJob news/news-cleanup (drafted manifest)"
+        probe_cmd: "kubectl apply --dry-run=server -f news-cleanup-cronjob.yaml"
+        result: "pass (created (server dry run)); re-run in t3 if the name or spec changes"
+    new_objects:
+      - "CronJob news/news-cleanup (t3)"
+      - "no new DB role or secret: reuses news_rw and its existing secret (02 probe proved it can DELETE)"
+    secret_exposure:
+      - "the DB password reaches the Job only through a secretKeyRef env var; the script never echoes it and does not run with set -x"
+
 assumptions:
   - id: a1
     text: "04:00 local is the collector's low-traffic window; no conflict with ingestion"
@@ -96,3 +111,4 @@ acceptance:
   - { item: "destructive operations have a human gate", done: true }
   - { item: "low reversibility → rollback_plan complete with checkpoint task (t5)", done: true }
   - { item: "full + low reversibility → whole plan signed off by user", done: true }
+  - { item: "deployment lap → preflight items concluded, external-artifact probes pass", done: true }
