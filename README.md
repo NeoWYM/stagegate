@@ -17,6 +17,7 @@ Agents are good at doing work and bad at knowing when to stop and ask. Left alon
 7. **Premises are checked before you spend on them.** When intent points at an existing target, one real read-only command must confirm it's still there — not retired, not superseded — before triage even starts. This runs earlier than the capability probe, because a spec-driven-development proposal step (if wired in) typically fires right after requirements sign-off, ahead of the probe; without this pre-check, that step can burn a full proposal/design/tasks set on a target that no longer exists.
 8. **Acceptance criteria must be falsifiable before they are frozen.** When a criterion carries a statistical threshold, a fresh strong-model reviewer must answer two questions before requirements sign-off: under what conditions does it fail, and can the threshold be cleared at the expected sample size. A criterion with no failing scenario is vacuous; a gate that cannot pass at n=25 is not a gate. Both are cheap to detect at stage 1 and expensive to discover at retrospective.
 9. **What the plan will create is proven creatable.** Laps that change deployments, infrastructure, credentials, or CI configuration run a planning pre-flight: every pinned image tag, preset, or version is looked up for real, every new object is listed as its own task, and objects validated by a server the plan never contacts (database roles, schemas) get a server-side acceptance probe — DDL inside `BEGIN … ROLLBACK`, or a server-side dry-run. A green plan only proves the tool accepts your config; it says nothing about whether the database accepts the role name you picked.
+10. **New tests have to fail before they count.** When a lap adds or rewrites tests, verification breaks the code under test on purpose — an inverted condition, an `rc != 0` check, an off-by-one — and every new test must go red. A test that stays green against broken code is vacuous, however many green checkmarks it adds to CI. One hand-made mutation per test is enough; this is not a mutation-testing framework, it's the cheapest proof that the test is wired to the thing it claims to check.
 
 ## The pipeline
 
@@ -28,7 +29,7 @@ Agents are good at doing work and bad at knowing when to stop and ask. Left alon
 3    planning       worker                           ── Human gate when destructive / low-reversibility; pre-flight for infra changes
 4    execution      worker                           ── destructive steps blocked until restore point lands
 4.5  review         worker, code laps only           ── skipped for non-code artifacts
-5    verification   worker, independent of executor
+5    verification   worker, independent of executor  ── new tests must fail against a deliberately broken build
 5.5  observation    worker, scheduled                ── Time gate: no verdict before observe_until
 6    retrospective  orchestrator, interactive        ── Human gate: next_iteration
 ```

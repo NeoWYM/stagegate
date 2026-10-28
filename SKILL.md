@@ -85,6 +85,8 @@ If the target repo uses an SDD tool (e.g. [OpenSpec](https://github.com/Fission-
 - A **destructive task not marked `human_gate`** is a planning defect → bounce back to stage 3.
 - A **deployment / infrastructure / credential / CI-config lap without `preflight`**, or with an external-artifact probe that did not pass, is a planning defect → bounce back to stage 3.
 - **Freezing**: approved documents are immutable; changing one means a new version re-passing its gate, and re-evaluating whether downstream stages must re-run.
+- **New tests must catch a bug (stage 5, conditional)**: when `04` added or rewrote tests, each one must fail against a deliberately broken version of the code (killed); survived → bounce back to 4. Put this in the verification worker's brief (details in stages-and-gates §5).
+- **Resume / handoff prompts**: always one ` ```text ` code block that points to the frozen documents instead of restating them (stages-and-gates, "Grounding in Claude Code").
 
 ## Budget discipline
 

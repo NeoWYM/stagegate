@@ -95,6 +95,9 @@ content:                            # stage-specific payload; structure per stag
   #   verdict (pass | rework)
   # verification:
   #   checks[] (id, expected, actual, pass)
+  #   when 04 added/rewrote tests, also mutation_checks[]
+  #   (test_id, mutation, result: killed | survived)
+  #   (see stages-and-gates §5; survived → back to 4)
   # observation:
   #   observe_until / sample_threshold / metrics[] (name, baseline,
   #   observed, hold) / decision (promote | rollback)
