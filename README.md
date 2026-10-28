@@ -1,5 +1,7 @@
 # stagegate
 
+English | [繁體中文](README.zh-TW.md)
+
 A staged, gated task pipeline for [Claude Code](https://claude.com/claude-code) — drive risky, destructive, or long-running tasks through explicit stages (premise check → triage → requirements → environment → planning → execution → review → verification → observation → retrospective), with frozen handoff documents between stages, human gates where they matter, and a cross-iteration backlog that turns a linear run into a loop.
 
 Ships as a Claude Code **skill**: the orchestrator instructions live in [`SKILL.md`](SKILL.md), with reference documents loaded on demand (progressive disclosure).
