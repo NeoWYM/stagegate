@@ -76,6 +76,8 @@ content:
 
   # the lap deploys a CronJob and builds an image → content must include preflight
   preflight:
+    blocked_steps:
+      - "t4 manual dry-run trigger (kubectl create job --from=cronjob/news-cleanup news-cleanup-dryrun -n news): creating a Job in the shared news namespace is refused for workers by the auto-mode classifier → already human_gate; the user runs it, verify with kubectl get job news-cleanup-dryrun -n news (Complete)"
     external_artifacts:
       - name: "base image python:3.12-slim (pinned in t2's Dockerfile)"
         probe_cmd: "curl -sf https://hub.docker.com/v2/repositories/library/python/tags/3.12-slim"

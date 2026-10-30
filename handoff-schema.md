@@ -73,8 +73,10 @@ content:                            # stage-specific payload; structure per stag
   #   + tasks[] must contain one checkpoint task (produces the restore point),
   #     with destructive tasks depends_on it
   #   laps changing deployments/infrastructure/credentials/CI config additionally:
-  #     preflight (external_artifacts[] (name, probe_cmd, result), new_objects[],
-  #     secret_exposure) — external_artifacts also holds the server-side
+  #     preflight (blocked_steps[], external_artifacts[] (name, probe_cmd, result),
+  #     new_objects[], secret_exposure) — blocked_steps lists every step the
+  #     permission layer (deny rules, hooks, auto-mode classifier) will refuse,
+  #     each marked human_gate and run by the user, stage-5 triggers included; — external_artifacts also holds the server-side
   #     acceptance probe for every new object that plan/dry-run never validates
   #     (e.g. DDL inside BEGIN … ROLLBACK on the database that will own it)
   #     (the failure this prevents: a role name the database reserves passed
